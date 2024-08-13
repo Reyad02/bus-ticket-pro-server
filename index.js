@@ -28,13 +28,35 @@ async function run() {
         // Send a ping to confirm a successful connection
         const database = client.db("bus-ticket-pro");
         const areas = database.collection("area");
+        const busDetails = database.collection("bus-details");
 
         ///get area
-        app.get('/area', async(req, res) => {
+        app.get('/area', async (req, res) => {
             const allPoints = await areas.find().toArray();
             res.send(allPoints);
         })
 
+        app.get("/validatePoints/:pickupPoint/:droppingPoint", async (req, res) => {
+            const {pickupPoint, droppingPoint} = req.params;
+            // console.l
+            const routes = await busDetails.find({
+                route_options: {
+                    $all: [pickupPoint, droppingPoint]
+                }
+            }).sort({ departure_time: 1 }).toArray();
+            if (routes.length > 0) {
+                res.send(routes);
+            } else {
+                res.send("nothing");
+            }
+        })
+
+        app.get("/tickets/:bus_num", async (req, res) =>{
+            const {bus_num} = req.params;
+            const query = {bus_num: bus_num}
+            const busInfo = await busDetails.findOne(query);
+            res.send(busInfo);
+        })
 
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
