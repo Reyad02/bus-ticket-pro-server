@@ -4,6 +4,7 @@ require('dotenv').config();
 var cors = require('cors')
 const app = express()
 const port = 3000
+const jwt = require('jsonwebtoken');
 
 app.use(express.json());
 app.use(cors())
@@ -29,6 +30,14 @@ async function run() {
         const database = client.db("bus-ticket-pro");
         const areas = database.collection("area");
         const busDetails = database.collection("bus-details");
+        const user = database.collection("user");
+
+        /// jwt
+        app.post("/jwt", async (req, res) => {
+            const { email } = req.body;
+            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN);
+            res.send(token);
+        })
 
         ///get area
         app.get('/area', async (req, res) => {
@@ -37,7 +46,7 @@ async function run() {
         })
 
         app.get("/validatePoints/:pickupPoint/:droppingPoint", async (req, res) => {
-            const {pickupPoint, droppingPoint} = req.params;
+            const { pickupPoint, droppingPoint } = req.params;
             // console.l
             const routes = await busDetails.find({
                 route_options: {
@@ -51,12 +60,19 @@ async function run() {
             }
         })
 
-        app.get("/tickets/:bus_num", async (req, res) =>{
-            const {bus_num} = req.params;
-            const query = {bus_num: bus_num}
+        app.get("/tickets/:bus_num", async (req, res) => {
+            const { bus_num } = req.params;
+            const query = { bus_num: bus_num }
             const busInfo = await busDetails.findOne(query);
             res.send(busInfo);
         })
+
+        /// user
+        // app.post("/user", async (req, res) => {
+        //     const data = req.body;
+        //     const result = await user.insertOne(data);
+        //     res.send(result);
+        // })
 
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
