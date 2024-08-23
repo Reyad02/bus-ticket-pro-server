@@ -71,11 +71,12 @@ async function run() {
 
         app.post('/order', verifyToken, async (req, res) => {
 
-            const { email, bus_name, seats, money, name } = req.body;
+            const { email, bus_name, seats, money, name, pickPoint, dropPoint } = req.body;
             if (email !== req?.decodedEmail.email) {
                 return res.status(401).send({ message: "Unauthorized User" });
             }
             const tran_id = new ObjectId().toString();
+            console.log("seats ", seats)
 
             const data = {
                 total_amount: money,
@@ -107,25 +108,25 @@ async function run() {
                 ship_postcode: 1000,
                 ship_country: 'Bangladesh',
             };
-            console.log(data);
+            // console.log(data);
 
             const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live)
             sslcz.init(data).then(apiResponse => {
                 // Redirect the user to payment gateway
                 let GatewayPageURL = apiResponse.GatewayPageURL
                 res.send({ url: GatewayPageURL })
-                console.log('Redirecting to: ', GatewayPageURL)
+                // console.log('Redirecting to: ', GatewayPageURL)
             });
 
             const finalOrder = {
-                email, name, bus_name, seats, money, paidStatus: false, tran_id
+                email, name, bus_name, seats, money, paidStatus: false, tran_id, pickPoint, dropPoint
             }
             const result = await order.insertOne(finalOrder);
 
             /// payment success url
             app.post("/payment/success/:tran_id", async (req, res) => {
                 const tran_id = req.params.tran_id;
-                console.log(req.params.tran_id)
+                // console.log(req.params.tran_id)
                 const filter = { tran_id: tran_id }
                 const updateDoc = {
                     $set: {
@@ -133,21 +134,33 @@ async function run() {
                     }
                 }
                 const result = await order.updateOne(filter, updateDoc)
-                console.log("result", result)
+
+                /// update seats of the bus
+                const filter1 = { bus_num: bus_name }
+                let updateSeats = {};
+                seats.forEach(seat => {
+                    updateSeats[`seats.${seat}`] = false;
+                });
+                const result1 = await busDetails.updateOne(filter1, {
+                    $set: updateSeats
+                })
+
+                console.log("result", result1);
+                // console.log("result", result)
                 if (result.modifiedCount > 0) {
-                    res.redirect(`http://localhost:5174/paymentSuccess/${tran_id}`)
+                    res.redirect(`http://localhost:5173/paymentSuccess/${tran_id}`)
                 }
             })
 
             /// payment fail url
             app.post("/payment/fail/:tran_id", async (req, res) => {
                 const tran_id = req.params.tran_id;
-                console.log(req.params.tran_id)
+                // console.log(req.params.tran_id)
                 const query = { tran_id: tran_id }
                 const result = await order.deleteOne(query)
-                console.log("result", result)
+                // console.log("result", result)
                 if (result.deletedCount > 0) {
-                    res.redirect(`http://localhost:5174/paymentFail/${tran_id}`)
+                    res.redirect(`http://localhost:5173/paymentFail/${tran_id}`)
                 }
             })
 
