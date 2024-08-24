@@ -182,18 +182,32 @@ async function run() {
 
         app.get("/validatePoints/:pickupPoint/:droppingPoint", async (req, res) => {
             const { pickupPoint, droppingPoint } = req.params;
-            // console.l
+
             const routes = await busDetails.find({
                 route_options: {
                     $all: [pickupPoint, droppingPoint]
                 }
             }).sort({ departure_time: 1 }).toArray();
-            if (routes.length > 0) {
-                res.send(routes);
+
+            const validRoutes = routes.filter(route => {
+                const pickupIndex = route.route_options.indexOf(pickupPoint);
+                const droppingIndex = route.route_options.indexOf(droppingPoint);
+
+                if (pickupIndex < droppingIndex && route.isGoing) {
+                    return true;
+                } else if (pickupIndex > droppingIndex && !route.isGoing) {
+                    return true;
+                }
+                return false;
+            });
+
+            if (validRoutes.length > 0) {
+                res.send(validRoutes);
             } else {
                 res.send("nothing");
             }
-        })
+        });
+
 
         app.get("/tickets/:bus_num", async (req, res) => {
             const { bus_num } = req.params;
