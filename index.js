@@ -71,7 +71,7 @@ async function run() {
 
         app.post('/order', verifyToken, async (req, res) => {
 
-            const { email, bus_name, seats, money, name, pickPoint, dropPoint } = req.body;
+            const { email, bus_name, seats, money, name, pickPoint, dropPoint, journeyDate } = req.body;
             if (email !== req?.decodedEmail.email) {
                 return res.status(401).send({ message: "Unauthorized User" });
             }
@@ -119,7 +119,7 @@ async function run() {
             });
 
             const finalOrder = {
-                email, name, bus_name, seats, money, paidStatus: false, tran_id, pickPoint, dropPoint
+                email, name, bus_name, seats, money, paidStatus: false, tran_id, pickPoint, dropPoint, journeyDate
             }
             const result = await order.insertOne(finalOrder);
 
@@ -178,6 +178,14 @@ async function run() {
             const query = { tran_id: tran_id }
             const ticket = await order.findOne(query);
             res.send(ticket);
+        })
+
+        app.get("/seatInfo/:bus_name/:journeyDate", async (req, res) => {
+            const { bus_name, journeyDate } = req.params;
+            const query = { bus_name: bus_name, journeyDate: journeyDate, paidStatus: true }
+            const tickets = await order.find(query).toArray();
+            console.log("toicke", tickets)
+            res.send(tickets);
         })
 
         app.get("/validatePoints/:pickupPoint/:droppingPoint", async (req, res) => {
