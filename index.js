@@ -136,16 +136,16 @@ async function run() {
                 const result = await order.updateOne(filter, updateDoc)
 
                 /// update seats of the bus
-                const filter1 = { bus_num: bus_name }
-                let updateSeats = {};
-                seats.forEach(seat => {
-                    updateSeats[`seats.${seat}`] = false;
-                });
-                const result1 = await busDetails.updateOne(filter1, {
-                    $set: updateSeats
-                })
+                // const filter1 = { bus_num: bus_name }
+                // let updateSeats = {};
+                // seats.forEach(seat => {
+                //     updateSeats[`seats.${seat}`] = false;
+                // });
+                // const result1 = await busDetails.updateOne(filter1, {
+                //     $set: updateSeats
+                // })
 
-                console.log("result", result1);
+                // console.log("result", result1);
                 // console.log("result", result)
                 if (result.modifiedCount > 0) {
                     res.redirect(`http://localhost:5173/paymentSuccess/${tran_id}`)
@@ -173,6 +173,7 @@ async function run() {
             res.send(allPoints);
         })
 
+        /// get single ticket info 
         app.get("/getTicket/:tran_id", async (req, res) => {
             const { tran_id } = req.params;
             const query = { tran_id: tran_id }
@@ -180,6 +181,7 @@ async function run() {
             res.send(ticket);
         })
 
+        /// get booked seats
         app.get("/seatInfo/:bus_name/:journeyDate", async (req, res) => {
             const { bus_name, journeyDate } = req.params;
             const query = { bus_name: bus_name, journeyDate: journeyDate, paidStatus: true }
@@ -188,6 +190,7 @@ async function run() {
             res.send(tickets);
         })
 
+        /// get available buses
         app.get("/validatePoints/:pickupPoint/:droppingPoint", async (req, res) => {
             const { pickupPoint, droppingPoint } = req.params;
 
@@ -216,7 +219,7 @@ async function run() {
             }
         });
 
-
+        /// get info about a single bus
         app.get("/tickets/:bus_num", async (req, res) => {
             const { bus_num } = req.params;
             const query = { bus_num: bus_num }
@@ -224,12 +227,26 @@ async function run() {
             res.send(busInfo);
         })
 
-        /// user
-        // app.post("/user", async (req, res) => {
-        //     const data = req.body;
-        //     const result = await user.insertOne(data);
-        //     res.send(result);
-        // })
+        /// get total payment
+        app.get("/totalPayments", async (req, res) => {
+            const query = { paidStatus: true }
+            const totalOrder = await order.find(query).toArray();
+            const countTotalOrder = totalOrder.length
+            const totalPayment = totalOrder.reduce((sum, payment) => sum + parseFloat(payment.money), 0);
+            res.send({ totalPayment, countTotalOrder });
+        })
+
+        /// get Total bus count
+        app.get("/totalBusCount", async (req, res) => {
+            const totalBusCount = await busDetails.countDocuments({});
+            res.send({ totalBusCount });
+        })
+
+        /// get total counter
+        app.get("/totalCounter", async (req, res) => {
+            const totalCounter = await areas.countDocuments({});
+            res.send({ totalCounter });
+        })
 
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
