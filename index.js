@@ -248,6 +248,19 @@ async function run() {
             res.send({ totalCounter });
         })
 
+        /// get all bus info
+        app.get("/allBusInfo", async (req, res) => {
+            const allBusInfo = await busDetails.find({}).toArray();
+            res.send(allBusInfo);
+        })
+
+        /// get all ticket
+        app.get("/allTicketInfo", async (req, res) => {
+            const filter = { paidStatus: true };
+            const allTicket = await order.find(filter).sort({ journeyDate: -1 }).toArray();
+            res.send(allTicket)
+        })
+
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
