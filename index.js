@@ -40,6 +40,7 @@ const verifyToken = (req, res, next) => {
         }
 
         req.decodedEmail = decodedEmail;
+        console.log("req.decodedEmail", decodedEmail);
         next();
     } catch (error) {
         // Handle any errors that occur during token verification
@@ -250,7 +251,7 @@ async function run() {
 
         /// get all bus info
         app.get("/allBusInfo", async (req, res) => {
-            const allBusInfo = await busDetails.find({}).toArray();
+            const allBusInfo = await busDetails.find({}).sort({ bus_num: 1 }).toArray();
             res.send(allBusInfo);
         })
 
@@ -259,6 +260,44 @@ async function run() {
             const filter = { paidStatus: true };
             const allTicket = await order.find(filter).sort({ journeyDate: -1 }).toArray();
             res.send(allTicket)
+        })
+
+        /// delete individual Bus
+        app.delete("/busInfo/delete/:num", async (req, res) => {
+            const { num } = req.params;
+            // console.log(num);
+            const query = { bus_num: num }
+            const result = await busDetails.deleteOne(query);
+            res.send(result);
+        })
+
+        /// update bus details
+        app.put("/busInfo/update/:num", async (req, res) => {
+            const { num } = req.params;
+            // console.log(req.body);
+            const { bus_num, seat_layout, departure_time, arrival_time, price } = req.body
+            const query = { bus_num: num }
+            const time24to12 = (time) => {
+                let [hour, min] = time.split(":");
+                const hourInt = parseInt(hour, 10);
+                const modifier = hourInt >= 12 ? "PM" : "AM"
+                hour = hourInt % 12 || 12
+                return `${hour}:${min} ${modifier}`
+            }
+            const update_departure_time = time24to12(departure_time);
+            const update_arrival_time = time24to12(arrival_time);
+            // console.log(update_departure_time, update_arrival_time)
+            const details = {
+                $set: {
+                    seat_layout: seat_layout,
+                    departure_time: update_departure_time,
+                    arrival_time: update_arrival_time,
+                    price: price
+                },
+            }
+
+            const result = await busDetails.updateOne(query, details)
+            res.send(result);
         })
 
         await client.db("admin").command({ ping: 1 });
