@@ -219,7 +219,7 @@ async function run() {
                     return false;
                 });
 
-                console.log("validRoute",validRoutes);
+                console.log("validRoute", validRoutes);
                 if (validRoutes.length > 0) {
                     res.send(validRoutes);
                 } else {
@@ -320,6 +320,42 @@ async function run() {
         app.get("/allRoutes", async (req, res) => {
             const allRouteInfo = await routes_way.find({}).toArray();
             res.send(allRouteInfo);
+        })
+
+        /// set a new bus
+        app.post("/addBus", async (req, res) => {
+            const { bus_num, seat_layout, departure_time, arrival_time, price, routeName, type, facilities, isGoing } = req.body.details
+            const time24to12 = (time) => {
+                let [hour, min] = time.split(":");
+                const hourInt = parseInt(hour, 10);
+                const modifier = hourInt >= 12 ? "PM" : "AM"
+                hour = hourInt % 12 || 12
+                hour = hour.toString().padStart(2, "0");  // Ensure hour has two digits
+                console.log(`${hour}:${min} ${modifier}`)
+                return `${hour}:${min} ${modifier}`
+            }
+            const update_departure_time = time24to12(departure_time);
+            const update_arrival_time = time24to12(arrival_time);
+            const stops = await routes_way.findOne({ routeName: routeName });
+            const duration = arrival_time - departure_time
+
+            const doc = {
+                bus_num: bus_num,
+                type: type,
+                seat_layout: seat_layout,
+                departure_time: update_departure_time,
+                arrival_time: update_arrival_time,
+                price: price,
+                facilities: facilities,
+                isGoing: isGoing,
+                route: {
+                    routeName: routeName,
+                    stops: stops.stops
+                }
+            }
+            const inserted = await busDetails.insertOne(doc);
+            res.send(inserted);
+
         })
 
         await client.db("admin").command({ ping: 1 });
