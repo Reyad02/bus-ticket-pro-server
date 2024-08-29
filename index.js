@@ -59,6 +59,7 @@ async function run() {
         const busDetails = database.collection("bus-details");
         const user = database.collection("user");
         const order = database.collection("order");
+        const routes_way = database.collection("routes");
 
         /// jwt
         app.post("/jwt", async (req, res) => {
@@ -191,32 +192,41 @@ async function run() {
             res.send(tickets);
         })
 
-        /// get available buses
+        // Get available buses
         app.get("/validatePoints/:pickupPoint/:droppingPoint", async (req, res) => {
             const { pickupPoint, droppingPoint } = req.params;
 
-            const routes = await busDetails.find({
-                route_options: {
-                    $all: [pickupPoint, droppingPoint]
+            try {
+                // Find routes that contain both the pickup and dropping points in the stops array
+                const routes = await busDetails.find({
+                    "route.stops": {
+                        $all: [pickupPoint, droppingPoint]
+                    }
+                }).sort({ departure_time: 1 }).toArray();
+                console.log("routes", routes);
+
+                // Filter the routes based on the order of the stops and the direction of the bus
+                const validRoutes = routes.filter(route => {
+                    const pickupIndex = route.route.stops.indexOf(pickupPoint);
+                    const droppingIndex = route.route.stops.indexOf(droppingPoint);
+
+                    // Check if the pickup point comes before the dropping point and the bus is going in the right direction
+                    if (pickupIndex < droppingIndex && route.isGoing) {
+                        return true;
+                    } else if (pickupIndex > droppingIndex && !route.isGoing) {
+                        return true;
+                    }
+                    return false;
+                });
+
+                console.log("validRoute",validRoutes);
+                if (validRoutes.length > 0) {
+                    res.send(validRoutes);
+                } else {
+                    res.send("nothing");
                 }
-            }).sort({ departure_time: 1 }).toArray();
-
-            const validRoutes = routes.filter(route => {
-                const pickupIndex = route.route_options.indexOf(pickupPoint);
-                const droppingIndex = route.route_options.indexOf(droppingPoint);
-
-                if (pickupIndex < droppingIndex && route.isGoing) {
-                    return true;
-                } else if (pickupIndex > droppingIndex && !route.isGoing) {
-                    return true;
-                }
-                return false;
-            });
-
-            if (validRoutes.length > 0) {
-                res.send(validRoutes);
-            } else {
-                res.send("nothing");
+            } catch (error) {
+                res.status(500).send("Server error");
             }
         });
 
@@ -275,29 +285,41 @@ async function run() {
         app.put("/busInfo/update/:num", async (req, res) => {
             const { num } = req.params;
             // console.log(req.body);
-            const { bus_num, seat_layout, departure_time, arrival_time, price } = req.body
+            const { bus_num, seat_layout, departure_time, arrival_time, price, routeName } = req.body
             const query = { bus_num: num }
             const time24to12 = (time) => {
                 let [hour, min] = time.split(":");
                 const hourInt = parseInt(hour, 10);
                 const modifier = hourInt >= 12 ? "PM" : "AM"
                 hour = hourInt % 12 || 12
+                hour = hour.toString().padStart(2, "0");  // Ensure hour has two digits
+
                 return `${hour}:${min} ${modifier}`
             }
             const update_departure_time = time24to12(departure_time);
             const update_arrival_time = time24to12(arrival_time);
             // console.log(update_departure_time, update_arrival_time)
+            const stops = await routes_way.findOne({ routeName: routeName });
+
             const details = {
                 $set: {
                     seat_layout: seat_layout,
                     departure_time: update_departure_time,
                     arrival_time: update_arrival_time,
-                    price: price
+                    price: price,
+                    "route.routeName": routeName,
+                    "route.stops": stops.stops
                 },
             }
 
             const result = await busDetails.updateOne(query, details)
             res.send(result);
+        })
+
+        // get all route
+        app.get("/allRoutes", async (req, res) => {
+            const allRouteInfo = await routes_way.find({}).toArray();
+            res.send(allRouteInfo);
         })
 
         await client.db("admin").command({ ping: 1 });
