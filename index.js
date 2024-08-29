@@ -175,6 +175,21 @@ async function run() {
             res.send(allPoints);
         })
 
+        /// get all stops
+        app.get("/allStops", async (req, res) => {
+            try {
+                const result = await routes_way.aggregate([
+                    { $unwind: '$stops' },
+                    { $group: { _id: '$stops', label: { $first: '$stops' }, value: { $first: '$stops' } } },
+                    { $project: { _id: 1, label: 1, value: 1 } }
+                ]).toArray();
+
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: 'An error occurred while fetching stops' });
+            }
+        });
+
         /// get single ticket info 
         app.get("/getTicket/:tran_id", async (req, res) => {
             const { tran_id } = req.params;
@@ -356,6 +371,12 @@ async function run() {
             const inserted = await busDetails.insertOne(doc);
             res.send(inserted);
 
+        })
+
+        /// get routes
+        app.get("/routes", async (req, res) => {
+            const result = await routes_way.find({}).toArray();
+            res.send(result);
         })
 
         await client.db("admin").command({ ping: 1 });
