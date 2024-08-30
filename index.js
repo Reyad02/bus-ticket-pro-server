@@ -379,6 +379,13 @@ async function run() {
             res.send(result);
         })
 
+        /// post new route
+        app.post("/new_route", async (req, res) => {
+            const doc = req.body?.details;
+            const result = await routes_way.insertOne(doc);
+            res.send(result);
+        })
+
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
