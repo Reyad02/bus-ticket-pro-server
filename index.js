@@ -29,18 +29,38 @@ const client = new MongoClient(uri, {
 
 const verifyToken = (req, res, next) => {
     try {
-        const token = req?.body?.token;
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            console.log("headers.authorization nai")
+            return res.status(401).send({ message: "Unauthorized User" });
+        }
+        const token = authHeader.split(" ")[1];
         if (!token) {
+            console.log("token nai")
             return res.status(401).send({ message: "Unauthorized User" });
         }
 
         const decodedEmail = jwt.verify(token, process.env.ACCESS_TOKEN);
         if (!decodedEmail) {
+            console.log("email er moddhe vejal ase ")
             return res.status(401).send({ message: "Unauthorized User" });
         }
 
         req.decodedEmail = decodedEmail;
         console.log("req.decodedEmail", decodedEmail);
+        next();
+    } catch (error) {
+        // Handle any errors that occur during token verification
+        res.status(401).send({ message: "Unauthorized User", error: error.message });
+    }
+};
+
+const verifyAdmin = (req, res, next) => {
+    try {
+        if (req?.decodedEmail.email !== process.env.ADMIN_EMAIL) {
+            console.log("email mile na")
+            return res.status(401).send({ message: "Unauthorized User" });
+        }
         next();
     } catch (error) {
         // Handle any errors that occur during token verification
@@ -191,7 +211,7 @@ async function run() {
         });
 
         /// get single ticket info 
-        app.get("/getTicket/:tran_id", async (req, res) => {
+        app.get("/getTicket/:tran_id", verifyToken, async (req, res) => {
             const { tran_id } = req.params;
             const query = { tran_id: tran_id }
             const ticket = await order.findOne(query);
@@ -254,7 +274,11 @@ async function run() {
         })
 
         /// get total payment
-        app.get("/totalPayments", async (req, res) => {
+        app.get("/totalPayments", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const query = { paidStatus: true }
             const totalOrder = await order.find(query).toArray();
             const countTotalOrder = totalOrder.length
@@ -263,32 +287,52 @@ async function run() {
         })
 
         /// get Total bus count
-        app.get("/totalBusCount", async (req, res) => {
+        app.get("/totalBusCount", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const totalBusCount = await busDetails.countDocuments({});
             res.send({ totalBusCount });
         })
 
         /// get total counter
-        app.get("/totalCounter", async (req, res) => {
+        app.get("/totalCounter", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const totalCounter = await areas.countDocuments({});
             res.send({ totalCounter });
         })
 
         /// get all bus info
-        app.get("/allBusInfo", async (req, res) => {
+        app.get("/allBusInfo", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const allBusInfo = await busDetails.find({}).sort({ bus_num: 1 }).toArray();
             res.send(allBusInfo);
         })
 
         /// get all ticket
-        app.get("/allTicketInfo", async (req, res) => {
+        app.get("/allTicketInfo", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const filter = { paidStatus: true };
             const allTicket = await order.find(filter).sort({ journeyDate: -1 }).toArray();
             res.send(allTicket)
         })
 
         /// delete individual Bus
-        app.delete("/busInfo/delete/:num", async (req, res) => {
+        app.delete("/busInfo/delete/:num", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const { num } = req.params;
             // console.log(num);
             const query = { bus_num: num }
@@ -297,7 +341,11 @@ async function run() {
         })
 
         /// update bus details
-        app.put("/busInfo/update/:num", async (req, res) => {
+        app.put("/busInfo/update/:num", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const { num } = req.params;
             // console.log(req.body);
             const { bus_num, seat_layout, departure_time, arrival_time, price, routeName } = req.body
@@ -338,7 +386,11 @@ async function run() {
         })
 
         /// set a new bus
-        app.post("/addBus", async (req, res) => {
+        app.post("/addBus", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const { bus_num, seat_layout, departure_time, arrival_time, price, routeName, type, facilities, isGoing } = req.body.details
             const time24to12 = (time) => {
                 let [hour, min] = time.split(":");
@@ -374,21 +426,32 @@ async function run() {
         })
 
         /// get routes
-        app.get("/routes", async (req, res) => {
+        app.get("/routes", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const result = await routes_way.find({}).toArray();
             res.send(result);
         })
 
         /// post new route
-        app.post("/new_route", async (req, res) => {
+        app.post("/new_route", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const doc = req.body?.details;
             const result = await routes_way.insertOne(doc);
             res.send(result);
         })
 
         /// get user booked data
-        app.get("/booked/:email", async (req, res) => {
-            const { email } = req.params;
+        app.get("/booked/:email", verifyToken, async (req, res) => {
+            const { email } = req?.params;
+            if (email !== req?.decodedEmail.email) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
             const filter = { email: email, paidStatus: true }
             const result = await order.find(filter).toArray();
             res.send(result);
