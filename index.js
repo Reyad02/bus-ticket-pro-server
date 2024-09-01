@@ -7,7 +7,6 @@ const port = 3000
 const jwt = require('jsonwebtoken');
 const SSLCommerzPayment = require('sslcommerz-lts')
 
-
 app.use(express.json());
 app.use(cors())
 
@@ -31,23 +30,23 @@ const verifyToken = (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader) {
-            console.log("headers.authorization nai")
+            // console.log("headers.authorization nai")
             return res.status(401).send({ message: "Unauthorized User" });
         }
         const token = authHeader.split(" ")[1];
         if (!token) {
-            console.log("token nai")
+            // console.log("token nai")
             return res.status(401).send({ message: "Unauthorized User" });
         }
 
         const decodedEmail = jwt.verify(token, process.env.ACCESS_TOKEN);
         if (!decodedEmail) {
-            console.log("email er moddhe vejal ase ")
+            // console.log("email er moddhe vejal ase ")
             return res.status(401).send({ message: "Unauthorized User" });
         }
 
         req.decodedEmail = decodedEmail;
-        console.log("req.decodedEmail", decodedEmail);
+        // console.log("req.decodedEmail", decodedEmail);
         next();
     } catch (error) {
         // Handle any errors that occur during token verification
@@ -58,7 +57,7 @@ const verifyToken = (req, res, next) => {
 const verifyAdmin = (req, res, next) => {
     try {
         if (req?.decodedEmail.email !== process.env.ADMIN_EMAIL) {
-            console.log("email mile na")
+            // console.log("email mile na")
             return res.status(401).send({ message: "Unauthorized User" });
         }
         next();
@@ -68,16 +67,13 @@ const verifyAdmin = (req, res, next) => {
     }
 };
 
-
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
         // Send a ping to confirm a successful connection
         const database = client.db("bus-ticket-pro");
-        const areas = database.collection("area");
         const busDetails = database.collection("bus-details");
-        const user = database.collection("user");
         const order = database.collection("order");
         const routes_way = database.collection("routes");
 
@@ -98,7 +94,7 @@ async function run() {
                 return res.status(401).send({ message: "Unauthorized User" });
             }
             const tran_id = new ObjectId().toString();
-            console.log("seats ", seats)
+            // console.log("seats ", seats)
 
             const data = {
                 total_amount: money,
@@ -156,19 +152,6 @@ async function run() {
                     }
                 }
                 const result = await order.updateOne(filter, updateDoc)
-
-                /// update seats of the bus
-                // const filter1 = { bus_num: bus_name }
-                // let updateSeats = {};
-                // seats.forEach(seat => {
-                //     updateSeats[`seats.${seat}`] = false;
-                // });
-                // const result1 = await busDetails.updateOne(filter1, {
-                //     $set: updateSeats
-                // })
-
-                // console.log("result", result1);
-                // console.log("result", result)
                 if (result.modifiedCount > 0) {
                     res.redirect(`http://localhost:5173/paymentSuccess/${tran_id}`)
                 }
@@ -185,14 +168,6 @@ async function run() {
                     res.redirect(`http://localhost:5173/paymentFail/${tran_id}`)
                 }
             })
-
-        })
-
-
-        ///get area
-        app.get('/area', async (req, res) => {
-            const allPoints = await areas.find().toArray();
-            res.send(allPoints);
         })
 
         /// get all stops
@@ -201,7 +176,8 @@ async function run() {
                 const result = await routes_way.aggregate([
                     { $unwind: '$stops' },
                     { $group: { _id: '$stops', label: { $first: '$stops' }, value: { $first: '$stops' } } },
-                    { $project: { _id: 1, label: 1, value: 1 } }
+                    { $project: { _id: 1, label: 1, value: 1 } },
+                    { $sort: { label: 1 } }  // Sorts the stops alphabetically by the 'label' field
                 ]).toArray();
 
                 res.send(result);
@@ -223,7 +199,7 @@ async function run() {
             const { bus_name, journeyDate } = req.params;
             const query = { bus_name: bus_name, journeyDate: journeyDate, paidStatus: true }
             const tickets = await order.find(query).toArray();
-            console.log("toicke", tickets)
+            // console.log("toicke", tickets)
             res.send(tickets);
         })
 
@@ -238,7 +214,7 @@ async function run() {
                         $all: [pickupPoint, droppingPoint]
                     }
                 }).sort({ departure_time: 1 }).toArray();
-                console.log("routes", routes);
+                // console.log("routes", routes);
 
                 // Filter the routes based on the order of the stops and the direction of the bus
                 const validRoutes = routes.filter(route => {
@@ -254,7 +230,7 @@ async function run() {
                     return false;
                 });
 
-                console.log("validRoute", validRoutes);
+                // console.log("validRoute", validRoutes);
                 if (validRoutes.length > 0) {
                     res.send(validRoutes);
                 } else {
@@ -294,16 +270,6 @@ async function run() {
             }
             const totalBusCount = await busDetails.countDocuments({});
             res.send({ totalBusCount });
-        })
-
-        /// get total counter
-        app.get("/totalCounter", verifyToken, verifyAdmin, async (req, res) => {
-            const email = req.headers.email; // or req.query.email or req.body.email
-            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
-                return res.status(401).send({ message: "Unauthorized User" });
-            }
-            const totalCounter = await areas.countDocuments({});
-            res.send({ totalCounter });
         })
 
         /// get all bus info
@@ -398,7 +364,7 @@ async function run() {
                 const modifier = hourInt >= 12 ? "PM" : "AM"
                 hour = hourInt % 12 || 12
                 hour = hour.toString().padStart(2, "0");  // Ensure hour has two digits
-                console.log(`${hour}:${min} ${modifier}`)
+                // console.log(`${hour}:${min} ${modifier}`)
                 return `${hour}:${min} ${modifier}`
             }
             const update_departure_time = time24to12(departure_time);
