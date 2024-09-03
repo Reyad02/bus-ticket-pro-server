@@ -3,12 +3,14 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 var cors = require('cors')
 const app = express()
-const port = 3000
+const port = process.env.PORT || 3000
 const jwt = require('jsonwebtoken');
 const SSLCommerzPayment = require('sslcommerz-lts')
 
 app.use(express.json());
-app.use(cors())
+app.use(cors({
+    origin: ['https://bus-ticket-pro.web.app', 'https://bus-ticket-pro.firebaseapp.com', 'http://localhost:5173']
+}));
 
 const store_id = process.env.STORE_ID;
 const store_passwd = process.env.STORE_PASS;
@@ -70,7 +72,7 @@ const verifyAdmin = (req, res, next) => {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         // Send a ping to confirm a successful connection
         const database = client.db("bus-ticket-pro");
         const busDetails = database.collection("bus-details");
@@ -100,10 +102,10 @@ async function run() {
                 total_amount: money,
                 currency: 'BDT',
                 tran_id: tran_id, // use unique tran_id for each api call
-                success_url: `http://localhost:3000/payment/success/${tran_id}`,
-                fail_url: `http://localhost:3000/payment/fail/${tran_id}`,
-                cancel_url: 'http://localhost:3030/cancel',
-                ipn_url: 'http://localhost:3030/ipn',
+                success_url: `https://bus-ticket-backend-nine.vercel.app/payment/success/${tran_id}`,
+                fail_url: `https://bus-ticket-backend-nine.vercel.app/payment/fail/${tran_id}`,
+                cancel_url: 'https://bus-ticket-backend-nine.vercel.app/cancel',
+                ipn_url: 'https://bus-ticket-backend-nine.vercel.app/ipn',
                 shipping_method: 'Courier',
                 product_name: 'Ticket',
                 product_category: 'Bus',
@@ -137,7 +139,7 @@ async function run() {
             });
 
             const finalOrder = {
-                email, name, bus_name, seats, money, paidStatus: false, tran_id, pickPoint, dropPoint, journeyDate
+                email, name, bus_name, seats, money, paidStatus: false, tran_id, pickPoint, dropPoint, journeyDate, createdAt: new Date()
             }
             const result = await order.insertOne(finalOrder);
 
@@ -153,7 +155,7 @@ async function run() {
                 }
                 const result = await order.updateOne(filter, updateDoc)
                 if (result.modifiedCount > 0) {
-                    res.redirect(`http://localhost:5173/paymentSuccess/${tran_id}`)
+                    res.redirect(`https://bus-ticket-pro.web.app/paymentSuccess/${tran_id}`)
                 }
             })
 
@@ -165,7 +167,7 @@ async function run() {
                 const result = await order.deleteOne(query)
                 // console.log("result", result)
                 if (result.deletedCount > 0) {
-                    res.redirect(`http://localhost:5173/paymentFail/${tran_id}`)
+                    res.redirect(`https://bus-ticket-pro.web.app/paymentFail/${tran_id}`)
                 }
             })
         })
@@ -423,8 +425,49 @@ async function run() {
             res.send(result);
         })
 
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        /// get bus info base on the AC and Non-AC
+        app.get('/order/bus-count', verifyToken, verifyAdmin, async (req, res) => {
+            try {
+                const result = await order.aggregate([
+                    {
+                        $lookup: {
+                            from: 'bus-details',  // Use the correct collection name here
+                            localField: 'bus_name',
+                            foreignField: 'bus_num',
+                            as: 'busDetails'
+                        }
+                    },
+                    { $unwind: '$busDetails' },  // Use the correct alias here
+                    {
+                        $group: {
+                            _id: '$busDetails.type',
+                            count: { $sum: 1 }
+                        }
+                    }
+                ]).toArray();
+
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: 'An error occurred while fetching bus count' });
+            }
+        });
+
+        /// get latest 5 data
+        app.get("/latestOrder", verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.headers.email; // or req.query.email or req.body.email
+            if (email !== req?.decodedEmail.email || email !== process.env.ADMIN_EMAIL) {
+                return res.status(401).send({ message: "Unauthorized User" });
+            }
+            const latestBookings = await order.find()
+                .sort({ createdAt: -1 }) // Sort by createdAt in descending order
+                .limit(5) // Limit to the top 5 results
+                .toArray(); // Convert cursor to an array
+            res.send(latestBookings);
+        })
+
+
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
@@ -438,5 +481,5 @@ app.get('/', (req, res) => {
 })
 
 app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`)
+    // console.log(`Example app listening on port ${port}`)
 })
